@@ -1,0 +1,265 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Nexus Financial Exchange - Hybrid Cloud Migration API",
+    "description": "Enterprise OpenAPI specification for decoupled shadow running, out-of-band trade surveillance, parity auditing, and zero-downtime cutover.",
+    "version": "1.0.0",
+    "contact": {
+      "name": "FinTech Core Architecture Team",
+      "email": "architecture@nexus-exchange.internal"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080",
+      "description": "Local Mission Control & API Gateway"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Telemetry & Surveillance",
+      "description": "Real-time parity auditing and system status endpoints"
+    },
+    {
+      "name": "Market Stream Engine",
+      "description": "Feed ingestion, speed control, and pause/resume triggers"
+    },
+    {
+      "name": "Chaos & Cutover",
+      "description": "Simulated availability zone outages, idempotent reconciliation, and cutover"
+    }
+  ],
+  "paths": {
+    "/api/status": {
+      "get": {
+        "tags": ["Telemetry & Surveillance"],
+        "summary": "Get Telemetry & Parity Snapshot",
+        "description": "Returns aggregate capture counts, notional volume totals, drift delta, and operational status.",
+        "responses": {
+          "200": {
+            "description": "Current system state snapshot",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TelemetrySnapshot"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/events": {
+      "get": {
+        "tags": ["Telemetry & Surveillance"],
+        "summary": "Server-Sent Events (SSE) Stream",
+        "description": "Continuous real-time event stream broadcasting trade transactions and parity audit metrics.",
+        "responses": {
+          "200": {
+            "description": "SSE text/event-stream connection",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/stream/toggle": {
+      "post": {
+        "tags": ["Market Stream Engine"],
+        "summary": "Toggle Streaming Ingestion",
+        "description": "Starts or pauses the decoupled market feed streaming worker.",
+        "responses": {
+          "200": {
+            "description": "Updated streaming status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "is_streaming": { "type": "boolean" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/stream/speed": {
+      "post": {
+        "tags": ["Market Stream Engine"],
+        "summary": "Update Stream Velocity",
+        "description": "Dynamically sets the ingestion rate in trades per second (TPS).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["tps"],
+                "properties": {
+                  "tps": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100,
+                    "example": 25
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated target TPS",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "target_tps": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/chaos/toggle": {
+      "post": {
+        "tags": ["Chaos & Cutover"],
+        "summary": "Toggle Chaos Network Outage",
+        "description": "Simulates transient network partition to AWS Cloud AZ, forcing cloud consumer drops while On-Prem continues serving 100% traffic.",
+        "responses": {
+          "200": {
+            "description": "Updated chaos status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "is_chaos_active": { "type": "boolean" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reconcile": {
+      "post": {
+        "tags": ["Chaos & Cutover"],
+        "summary": "Trigger Out-of-Band Idempotent Replay",
+        "description": "Surveillance auditor queries missing trade IDs and replays dropped trades into Cloud Aurora DB with INSERT OR IGNORE idempotency.",
+        "responses": {
+          "200": {
+            "description": "Reconciliation result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "replayed": { "type": "integer", "example": 80 },
+                    "status": { "type": "string", "example": "IN_PARITY" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cutover": {
+      "post": {
+        "tags": ["Chaos & Cutover"],
+        "summary": "Promote Cloud to Primary Master",
+        "description": "Executes final cutover promoting Cloud Aurora Multi-AZ to Primary Master and transitioning Legacy On-Prem to standby.",
+        "responses": {
+          "200": {
+            "description": "Cutover confirmation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "is_cutover_active": { "type": "boolean", "example": true }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reset": {
+      "post": {
+        "tags": ["Market Stream Engine"],
+        "summary": "Reset Simulation Databases",
+        "description": "Clears SQLite / PostgreSQL records and resets trade pool cursor to beginning.",
+        "responses": {
+          "200": {
+            "description": "Reset confirmation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string", "example": "RESET_COMPLETE" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Trade": {
+        "type": "object",
+        "required": [
+          "trade_id",
+          "instrument",
+          "price",
+          "quantity",
+          "buy_order_id",
+          "sell_order_id",
+          "timestamp"
+        ],
+        "properties": {
+          "trade_id": { "type": "string", "example": "TRD-882FA9B120C1" },
+          "instrument": { "type": "string", "example": "NVDA" },
+          "price": { "type": "number", "format": "float", "example": 128.5 },
+          "quantity": { "type": "integer", "example": 50 },
+          "buy_order_id": { "type": "string", "example": "ORD-BUY-A19F83C2" },
+          "sell_order_id": { "type": "string", "example": "ORD-SELL-D092B410" },
+          "timestamp": { "type": "string", "example": "2026-10-01T09:30:15Z" }
+        }
+      },
+      "TelemetrySnapshot": {
+        "type": "object",
+        "properties": {
+          "legacy_count": { "type": "integer", "example": 810 },
+          "cloud_count": { "type": "integer", "example": 810 },
+          "drift": { "type": "integer", "example": 0 },
+          "status": { "type": "string", "enum": ["IN_PARITY", "DRIFT_DETECTED"], "example": "IN_PARITY" },
+          "legacy_volume": { "type": "number", "example": 373243850.67 },
+          "cloud_volume": { "type": "number", "example": 373243850.67 },
+          "volume_difference": { "type": "number", "example": 0.0 },
+          "is_streaming": { "type": "boolean", "example": true },
+          "is_chaos_active": { "type": "boolean", "example": false },
+          "is_cutover_active": { "type": "boolean", "example": false },
+          "tps": { "type": "integer", "example": 20 }
+        }
+      }
+    }
+  }
+}

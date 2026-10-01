@@ -1,0 +1,51 @@
+name: CI / DevSecOps Pipeline
+
+on:
+  pull_request:
+    branches:
+      - main
+      - dev
+  push:
+    branches:
+      - main
+      - dev
+
+jobs:
+  quality-and-security:
+    name: Lint, Test, and Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Step 1 - Linting with flake8 (PEP8 Compliance)
+        run: |
+          # Stop the build if there are Python syntax errors or undefined names
+          flake8 src data tests main.py --count --select=E9,F63,F7,F82 --show-source --statistics
+          # Enforce PEP8 on active codebase with 100 char line limit
+          flake8 src data tests main.py --count --max-line-length=100 --statistics
+
+      - name: Step 2 - Automated Unit & Parity Tests with pytest
+        run: |
+          pytest tests/ -v --maxfail=1
+
+      - name: Step 3 - Security Vulnerability Scanning with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: "fs"
+          scan-ref: "."
+          severity: "CRITICAL,HIGH"
+          format: "table"
+          exit-code: "0" # Non-blocking on advisory, enforce security auditing

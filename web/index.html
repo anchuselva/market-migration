@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nexus Exchange | Hybrid Cloud Migration & Parity Mission Control</title>
+  <meta name="description" content="Decoupled shadow running, real-time parity auditor, and zero-downtime cutover dashboard for 24/7 financial exchange.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Top Navigation / Header -->
+    <header class="app-header">
+      <div class="header-brand">
+        <div class="brand-logo">
+          <span class="logo-icon">⚡</span>
+          <div class="logo-pulse"></div>
+        </div>
+        <div>
+          <h1 class="brand-title">NEXUS EXCHANGE <span class="badge-sub">FINTECH CORE</span></h1>
+          <p class="brand-subtitle">Hybrid Cloud Migration Engine &bull; Zero-Downtime Decoupled Shadow Running</p>
+        </div>
+      </div>
+
+      <div class="header-telemetry">
+        <div class="telemetry-badge" id="sla-badge">
+          <span class="pulse-dot green"></span>
+          <span class="badge-label">HIGH AVAILABILITY: <strong id="sla-val">99.999% SLA</strong></span>
+        </div>
+        <div class="telemetry-badge" id="broker-badge">
+          <span class="pulse-dot cyan"></span>
+          <span class="badge-label">KAFKA FAN-OUT: <strong id="broker-status">ACTIVE</strong></span>
+        </div>
+        <div class="telemetry-badge parity-pill" id="parity-pill">
+          <span class="pulse-dot" id="parity-pill-dot"></span>
+          <span class="badge-label" id="parity-pill-text">CALCULATING PARITY...</span>
+        </div>
+        <a href="/docs" target="_blank" class="telemetry-badge" style="text-decoration:none; color:#38bdf8; border-color:rgba(56,189,248,0.4);">
+          <span>📘 OpenAPI Contract</span>
+        </a>
+      </div>
+    </header>
+
+    <!-- Mission Control Action Bar -->
+    <section class="control-bar glass-card">
+      <div class="controls-group">
+        <button id="btn-stream-toggle" class="btn btn-primary" title="Toggle Live Market Feed Ingestion">
+          <span class="btn-icon" id="stream-icon">▶</span>
+          <span id="stream-btn-label">Start Stream</span>
+        </button>
+
+        <button id="btn-chaos-toggle" class="btn btn-warning" title="Simulate AWS Availability Zone Outage / Network Partition">
+          <span class="btn-icon">⚡</span>
+          <span id="chaos-btn-label">Inject Cloud Chaos</span>
+        </button>
+
+        <button id="btn-reconcile" class="btn btn-success" title="Execute Idempotent Out-of-Band Replay to Heal Drift">
+          <span class="btn-icon">🔄</span>
+          <span>Auto-Reconcile Drift</span>
+        </button>
+
+        <button id="btn-cutover" class="btn btn-accent" title="Promote Cloud Aurora to Primary Master">
+          <span class="btn-icon">🚀</span>
+          <span>Promote Cutover</span>
+        </button>
+
+        <button id="btn-reset" class="btn btn-outline" title="Reset Ingestion Databases and Cleanse Fresh Trades">
+          <span class="btn-icon">↺</span>
+          <span>Reset Demo</span>
+        </button>
+      </div>
+
+      <div class="speed-slider-group">
+        <label for="speed-range" class="slider-label">STREAM PACING: <span id="speed-val" class="mono text-cyan">20 TPS</span></label>
+        <input type="range" id="speed-range" min="2" max="60" value="20" class="custom-slider">
+      </div>
+    </section>
+
+    <!-- Architecture Visualizer Diagram -->
+    <section class="arch-visualizer glass-card">
+      <div class="section-header">
+        <div class="section-title-wrap">
+          <span class="section-dot"></span>
+          <h2>Live Topology & Out-of-Band Parity Routing</h2>
+        </div>
+        <span class="topology-sub" id="topology-status-text">Synchronous Dual Fan-out Stream Active</span>
+      </div>
+
+      <div class="diagram-grid">
+        <!-- Node 1: Producer -->
+        <div class="topo-node producer-node">
+          <div class="node-icon">📊</div>
+          <div class="node-title">Market Feed</div>
+          <div class="node-subtitle">Producer Engine</div>
+          <div class="node-metric" id="topo-producer-rate">0 trades/sec</div>
+        </div>
+
+        <div class="connector connector-right">
+          <div class="flow-line active"></div>
+          <span class="connector-label">market.trades</span>
+        </div>
+
+        <!-- Node 2: Decoupled Broker -->
+        <div class="topo-node broker-node">
+          <div class="node-icon">⚡</div>
+          <div class="node-title">Event Stream</div>
+          <div class="node-subtitle">Decoupled Fan-Out</div>
+          <div class="node-metric">Topic Partition 0-2</div>
+        </div>
+
+        <!-- Fork Split -->
+        <div class="fork-connectors">
+          <div class="fork-leg fork-top">
+            <div class="flow-line active"></div>
+            <span class="fork-tag">Legacy Wire</span>
+          </div>
+          <div class="fork-leg fork-bottom" id="cloud-fork-leg">
+            <div class="flow-line active" id="cloud-flow-line"></div>
+            <span class="fork-tag" id="cloud-fork-tag">Shadow Wire</span>
+          </div>
+        </div>
+
+        <!-- Target Nodes Column -->
+        <div class="target-nodes-col">
+          <!-- Node 3: On-Prem Legacy -->
+          <div class="topo-node legacy-target-node">
+            <div class="node-badge legacy-tag">ON-PREM PRIMARY</div>
+            <div class="node-title">Legacy Trading DB</div>
+            <div class="node-subtitle">SQLite / Bare-Metal PG</div>
+            <div class="node-metric mono text-legacy" id="topo-legacy-count">0 Captured</div>
+          </div>
+
+          <!-- Node 4: Target Cloud -->
+          <div class="topo-node cloud-target-node" id="topo-cloud-node">
+            <div class="node-badge cloud-tag" id="cloud-node-badge">CLOUD SHADOW</div>
+            <div class="node-title">Target Aurora DB</div>
+            <div class="node-subtitle">AWS Multi-AZ PostgreSQL</div>
+            <div class="node-metric mono text-cloud" id="topo-cloud-count">0 Captured</div>
+          </div>
+        </div>
+
+        <div class="auditor-connectors">
+          <div class="diag-line-top"></div>
+          <div class="diag-line-bottom"></div>
+        </div>
+
+        <!-- Node 5: Out of Band Parity Auditor -->
+        <div class="topo-node auditor-node" id="topo-auditor-node">
+          <div class="node-icon">🛡️</div>
+          <div class="node-title">Parity Auditor</div>
+          <div class="node-subtitle">Out-of-Band Engine</div>
+          <div class="node-metric" id="topo-auditor-drift">Drift: 0</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Key Metrics Cards Grid -->
+    <section class="kpi-grid">
+      <!-- Card 1: Legacy Database Captured -->
+      <div class="kpi-card glass-card">
+        <div class="kpi-header">
+          <span class="kpi-title">LEGACY CAPTURED (ON-PREM)</span>
+          <span class="badge-mini legacy">PRIMARY HOT</span>
+        </div>
+        <div class="kpi-value mono text-legacy" id="kpi-legacy-count">0</div>
+        <div class="kpi-footer">
+          <span>Notional Volume:</span>
+          <strong class="mono" id="kpi-legacy-vol">$0.00</strong>
+        </div>
+      </div>
+
+      <!-- Card 2: Cloud Database Captured -->
+      <div class="kpi-card glass-card">
+        <div class="kpi-header">
+          <span class="kpi-title">CLOUD CAPTURED (SHADOW)</span>
+          <span class="badge-mini cloud" id="cloud-badge-status">SHADOW AZ-1</span>
+        </div>
+        <div class="kpi-value mono text-cloud" id="kpi-cloud-count">0</div>
+        <div class="kpi-footer">
+          <span>Notional Volume:</span>
+          <strong class="mono" id="kpi-cloud-vol">$0.00</strong>
+        </div>
+      </div>
+
+      <!-- Card 3: Out-of-Band Drift -->
+      <div class="kpi-card glass-card" id="card-drift">
+        <div class="kpi-header">
+          <span class="kpi-title">PARITY DRIFT (DELTA)</span>
+          <span class="badge-mini drift" id="drift-status-badge">ZERO DRIFT</span>
+        </div>
+        <div class="kpi-value mono" id="kpi-drift-count">0 <span class="drift-unit">trades</span></div>
+        <div class="kpi-footer">
+          <span>Volume Discrepancy:</span>
+          <strong class="mono text-warn" id="kpi-vol-diff">$0.00</strong>
+        </div>
+      </div>
+
+      <!-- Card 4: Cutover & Ingestion Velocity -->
+      <div class="kpi-card glass-card">
+        <div class="kpi-header">
+          <span class="kpi-title">INGESTION VELOCITY</span>
+          <span class="badge-mini tps">REAL-TIME</span>
+        </div>
+        <div class="kpi-value mono text-cyan" id="kpi-tps">0 <span class="drift-unit">TPS</span></div>
+        <div class="kpi-footer">
+          <span>Clean Dataset Pool:</span>
+          <strong class="mono" id="kpi-clean-pool">810 Records</strong>
+        </div>
+      </div>
+    </section>
+
+    <!-- Main Workspace Split: Live Feeds & Audit Ledger -->
+    <main class="workspace-grid">
+      <!-- Left Panel: Real-Time Dual Trade Ingestion Feed -->
+      <section class="feed-panel glass-card">
+        <div class="panel-header">
+          <div class="section-title-wrap">
+            <span class="section-dot pulse-cyan"></span>
+            <h3>Dual Decoupled Trade Ingestion Stream</h3>
+          </div>
+          <span class="feed-counter mono" id="feed-counter">Showing latest trades</span>
+        </div>
+
+        <div class="table-container">
+          <table class="trade-table" id="trade-table">
+            <thead>
+              <tr>
+                <th>Trade ID</th>
+                <th>Instrument</th>
+                <th>Price</th>
+                <th>Qty</th>
+                <th>Volume</th>
+                <th>Legacy Status</th>
+                <th>Cloud Status</th>
+                <th>Timestamp</th>
+              </tr>
+            </thead>
+            <tbody id="trade-tbody">
+              <!-- Populated dynamically via SSE stream -->
+              <tr class="empty-row">
+                <td colspan="8">Stream standby. Click "Start Stream" above to activate high-throughput ingestion.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Right Panel: Parity Audit Log & Chaos Console -->
+      <section class="audit-panel glass-card">
+        <div class="panel-header">
+          <div class="section-title-wrap">
+            <span class="section-dot pulse-green" id="audit-dot"></span>
+            <h3>Out-of-Band Parity Audit Console</h3>
+          </div>
+          <button class="btn-clear" id="btn-clear-log" title="Clear Event Log">Clear</button>
+        </div>
+
+        <div class="console-box" id="audit-console">
+          <div class="log-line info">
+            <span class="log-ts">[INIT]</span>
+            <span class="log-msg">Clean Architecture Engine Initialized &bull; Ports & Adapters Ready</span>
+          </div>
+          <div class="log-line success">
+            <span class="log-ts">[PORT]</span>
+            <span class="log-msg">SqliteTradeRepository connected: legacy_trades.db &amp; cloud_trades.db</span>
+          </div>
+          <div class="log-line highlight">
+            <span class="log-ts">[AUDITOR]</span>
+            <span class="log-msg">Out-of-Band Parity Checker listening on topic: market.trades</span>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Footer System Info -->
+    <footer class="app-footer">
+      <div>
+        <strong>FinTech Architecture:</strong> Hexagonal / Ports &amp; Adapters &bull; Zero External Domain Dependencies &bull; Idempotent Writes (`INSERT OR IGNORE` / `ON CONFLICT DO NOTHING`)
+      </div>
+      <div>
+        Status: <span class="text-green mono">ALL SYSTEMS OPERATIONAL</span>
+      </div>
+    </footer>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
