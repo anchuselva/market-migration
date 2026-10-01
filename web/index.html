@@ -212,6 +212,42 @@
       </div>
     </section>
 
+    <!-- Migrated Core Workload: Trade Reporting & Regulatory Compliance -->
+    <section class="glass-card reporting-workload-card">
+      <div class="workload-header">
+        <div class="workload-title-wrap">
+          <span class="badge-sub" style="background: rgba(168,85,247,0.2); color:#c084fc; border-color:#a855f7;">MIGRATED CORE WORKLOAD</span>
+          <h3>Post-Trade Regulatory Reporting & Surveillance (FINRA CAT / MiFID II)</h3>
+        </div>
+        <button class="btn btn-outline" id="btn-export-eod" title="Download Regulatory Compliance Snapshot">
+          <span class="btn-icon">📥</span>
+          <span>Export EOD Regulatory Report</span>
+        </button>
+      </div>
+      <div class="workload-metrics-ribbon">
+        <div class="workload-metric-item">
+          <span class="w-label">Active Cloud Datastore:</span>
+          <strong class="w-val text-cloud">AWS Aurora Multi-AZ (PostgreSQL)</strong>
+        </div>
+        <div class="workload-metric-item">
+          <span class="w-label">Reported Executions:</span>
+          <strong class="w-val mono" id="rep-executions">0 trades</strong>
+        </div>
+        <div class="workload-metric-item">
+          <span class="w-label">Aggregated Volume:</span>
+          <strong class="w-val mono text-green" id="rep-volume">$0.00</strong>
+        </div>
+        <div class="workload-metric-item">
+          <span class="w-label">Average Execution:</span>
+          <strong class="w-val mono text-cyan" id="rep-avg">$0.00</strong>
+        </div>
+        <div class="workload-metric-item">
+          <span class="w-label">On-Prem CPU Impact:</span>
+          <strong class="w-val text-green">0% (100% Offloaded)</strong>
+        </div>
+      </div>
+    </section>
+
     <!-- Main Workspace Split: Live Feeds & Audit Ledger -->
     <main class="workspace-grid">
       <!-- Left Panel: Real-Time Dual Trade Ingestion Feed -->

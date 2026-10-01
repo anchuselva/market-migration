@@ -221,3 +221,28 @@ class TestPostgresTradeRepositoryMocked:
 
         repo.close()
         assert mock_conn.close.called
+
+
+class TestTradeReportingWorkload:
+    """Test suite for the migrated core Trade Reporting workload."""
+
+    def test_trade_reporting_generation(
+        self, sample_trade_1: Trade, sample_trade_2: Trade
+    ) -> None:
+        """Verify regulatory report computes accurate metrics from cloud repository."""
+        from src.use_cases.trade_reporting import TradeReportingUseCase
+
+        cloud_repo = SqliteTradeRepository(":memory:")
+        cloud_repo.save(sample_trade_1)
+        cloud_repo.save(sample_trade_2)
+
+        reporting_use_case = TradeReportingUseCase(cloud_repo)
+        report = reporting_use_case.generate_eod_regulatory_report()
+
+        assert report["workload_name"] == "Post-Trade Regulatory Reporting & Surveillance"
+        assert report["execution_status"] == "CLOUD_NATIVE_ACTIVE"
+        assert report["total_reported_executions"] == 2
+        assert report["total_notional_volume"] == 2500.0
+        assert report["average_execution_value"] == 1250.0
+
+        cloud_repo.close()

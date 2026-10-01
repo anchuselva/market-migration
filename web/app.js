@@ -57,6 +57,12 @@ const topologyStatusText = document.getElementById('topology-status-text');
 const tradeTbody = document.getElementById('trade-tbody');
 const auditConsole = document.getElementById('audit-console');
 
+// Migrated Core Workload Elements
+const repExecutions = document.getElementById('rep-executions');
+const repVolume = document.getElementById('rep-volume');
+const repAvg = document.getElementById('rep-avg');
+const btnExportEod = document.getElementById('btn-export-eod');
+
 // Formatters
 const currencyFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -168,6 +174,13 @@ function handleTelemetryUpdate(data) {
       ? '🚀 Cloud Aurora Promoted to Primary • Legacy Decommissioned' 
       : 'Synchronous Dual Fan-out Stream Active';
     topologyStatusText.className = 'topology-sub';
+  }
+
+  // Handle Migrated Core Workload Metrics (Trade Reporting)
+  if (data.reporting) {
+    repExecutions.textContent = `${numberFormatter.format(data.reporting.total_reported_executions)} trades`;
+    repVolume.textContent = currencyFormatter.format(data.reporting.total_notional_volume);
+    repAvg.textContent = currencyFormatter.format(data.reporting.average_execution_value);
   }
 
   // Handle Latest Trades in Feed Table
@@ -341,6 +354,22 @@ speedRange.addEventListener('input', (e) => {
 
 btnClearLog.addEventListener('click', () => {
   auditConsole.innerHTML = '';
+});
+
+btnExportEod.addEventListener('click', async () => {
+  try {
+    const res = await fetch('/api/reports/eod');
+    const data = await res.json();
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `FINRA_CAT_EOD_REPORT_${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    appendConsoleLog('REPORT', 'success', 'Downloaded Regulatory EOD Report snapshot.');
+  } catch (err) {
+    console.error(err);
+  }
 });
 
 // Boot

@@ -858,6 +858,67 @@ body {
 .log-line.audit .log-msg { color: #c4b5fd; }
 
 /* ==========================================================================
+   Migrated Core Workload: Trade Reporting Card
+   ========================================================================== */
+.reporting-workload-card {
+  padding: 18px 24px;
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.08), rgba(15, 23, 42, 0.85));
+  border-color: rgba(168, 85, 247, 0.25);
+}
+
+.workload-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.workload-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.workload-title-wrap h3 {
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.workload-metrics-ribbon {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  background: rgba(11, 17, 32, 0.7);
+  padding: 12px 18px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.workload-metric-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.w-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.w-val {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* ==========================================================================
    Footer
    ========================================================================== */
 .app-footer {

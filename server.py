@@ -19,6 +19,7 @@ from src.config.settings import get_settings
 from src.domain.models import Trade
 from src.use_cases.ingest_trade import IngestTradeUseCase
 from src.use_cases.parity_checker import ParityCheckerUseCase
+from src.use_cases.trade_reporting import TradeReportingUseCase
 
 
 class MigrationSystemState:
@@ -38,6 +39,7 @@ class MigrationSystemState:
         self.legacy_ingest: IngestTradeUseCase
         self.cloud_ingest: IngestTradeUseCase
         self.parity_checker: ParityCheckerUseCase
+        self.reporting_workload: TradeReportingUseCase
 
         self._init_repositories()
 
@@ -69,6 +71,7 @@ class MigrationSystemState:
         self.legacy_ingest = IngestTradeUseCase(self.legacy_repo)
         self.cloud_ingest = IngestTradeUseCase(self.cloud_repo)
         self.parity_checker = ParityCheckerUseCase(self.legacy_repo, self.cloud_repo)
+        self.reporting_workload = TradeReportingUseCase(self.cloud_repo)
 
     def _load_market_data_pool(self) -> None:
         """Load or synthesize cleaned domain Trade entities."""
@@ -168,6 +171,7 @@ class MigrationSystemState:
                 "is_chaos_active": self.is_chaos_active,
                 "is_cutover_active": self.is_cutover_active,
                 "tps": self.actual_tps or (self.target_tps if self.is_streaming else 0),
+                "reporting": self.reporting_workload.generate_eod_regulatory_report(),
                 "latest_trades": list(self.recent_trades)[:15],
                 "recent_logs": list(self.recent_logs)[-8:],
             }
@@ -262,6 +266,12 @@ class MissionControlHandler(SimpleHTTPRequestHandler):
         if self.path == "/docs":
             self.path = "/docs.html"
 
+        if self.path == "/api/reports/eod":
+            with SYSTEM_STATE.lock:
+                report = SYSTEM_STATE.reporting_workload.generate_eod_regulatory_report()
+            self._send_json(report)
+            return
+
         # Serve static web files
         if self.path == "/":
             self.path = "/index.html"
@@ -333,7 +343,7 @@ class MissionControlHandler(SimpleHTTPRequestHandler):
                 self.wfile.write(payload.encode("utf-8"))
                 self.wfile.flush()
                 time.sleep(0.2)
-        except (BrokenPipeError, ConnectionResetError):
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, OSError):
             pass
 
     def _read_json_body(self) -> Dict[str, Any]:

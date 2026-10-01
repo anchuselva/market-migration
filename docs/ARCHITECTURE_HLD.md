@@ -1,15 +1,19 @@
-# High-Level Architecture Design (HLD)
-## Hybrid Cloud Migration & Out-of-Band Surveillance System
+# Challenge 1.2 — Incremental Cloud Migration of Market Processing Workloads
+## High-Level Architecture Design (HLD) & Hybrid Coexistence Specification
 
 ---
 
-## 1. Executive Summary & Core Objective
+## 1. Executive Summary & Problem Statement
 
-Modernizing a mission-critical 24/7 financial exchange requires transitioning from a legacy on-premises architecture to an elastic, cloud-native infrastructure (AWS Aurora Multi-AZ) with two non-negotiable requirements:
-1. **Zero Downtime (High Availability, 99.999% SLA)**
-2. **Zero Data Loss (Absolute Financial Parity & Auditability)**
+**Problem Statement**: *How can high-frequency market-processing services be migrated to the cloud incrementally while maintaining zero downtime and real-time data consistency?*
 
-Rather than a risky "Big Bang" cutover, this system implements a **Decoupled Shadow Running Architecture** coupled with an **Out-of-Band Trade Surveillance & Parity Auditor**.
+**The Catch**: *The exchange never stops. Legacy and cloud components must run simultaneously during migration.*
+
+To resolve this, our engineering solution delivers a **Decoupled Shadow Running Pattern** featuring:
+1. **Target Cloud Architecture**: AWS MSK Apache Kafka, Amazon Aurora Multi-AZ PostgreSQL, and AWS ECS Fargate connected via AWS Direct Connect.
+2. **Core Workload Migration**: Incremental migration of **Trade Reporting & Post-Trade Compliance Surveillance** offloading analytical I/O from the matching engine.
+3. **Dynamic Data Synchronization**: Dual-stream asynchronous fan-out guaranteeing **real-time data consistency**.
+4. **Zero-Data-Loss Rollback Engine**: Out-of-band parity auditor with automated catch-up replay enforcing **RPO = 0 and RTO = 0**.
 
 ---
 
