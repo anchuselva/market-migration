@@ -320,6 +320,22 @@ class MissionControlHandler(SimpleHTTPRequestHandler):
             self._send_json({"is_cutover_active": True})
             return
 
+        if self.path == "/api/rollback":
+            with SYSTEM_STATE.lock:
+                SYSTEM_STATE.is_cutover_active = False
+                SYSTEM_STATE.is_chaos_active = False
+            SYSTEM_STATE.log(
+                "ROLLBACK",
+                "alert",
+                "Failback executed! Legacy Hot-Standby resumed primary matching (0.00% data loss).",
+            )
+            self._send_json({
+                "is_cutover_active": False,
+                "status": "ROLLBACK_SUCCESSFUL",
+                "data_loss_percentage": 0.0,
+            })
+            return
+
         if self.path == "/api/reset":
             SYSTEM_STATE.reset_databases()
             self._send_json({"status": "RESET_COMPLETE"})
