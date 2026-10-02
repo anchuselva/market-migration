@@ -244,6 +244,13 @@ class MissionControlHandler(SimpleHTTPRequestHandler):
         web_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web")
         super().__init__(*args, directory=web_dir, **kwargs)
 
+    def handle(self) -> None:
+        """Handle requests while suppressing abrupt client disconnect errors."""
+        try:
+            super().handle()
+        except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError, OSError):
+            pass
+
     def do_GET(self) -> None:
         """Handle GET requests for static assets and SSE streams."""
         if self.path == "/api/status":
@@ -392,14 +399,15 @@ def run_server(port: int = 8080) -> None:
     )
     worker_thread.start()
 
-    # Bind HTTP Server
-    server_address = ("127.0.0.1", port)
+    # Bind HTTP Server (0.0.0.0 allows public/container access)
+    host = os.environ.get("HOST", "0.0.0.0")
+    server_address = (host, port)
     try:
         httpd = ThreadingHTTPServer(server_address, MissionControlHandler)
     except OSError:
         # Fallback to alternate port
         port = 8000
-        server_address = ("127.0.0.1", port)
+        server_address = (host, port)
         httpd = ThreadingHTTPServer(server_address, MissionControlHandler)
 
     print("=" * 80)
@@ -415,5 +423,6 @@ def run_server(port: int = 8080) -> None:
 
 
 if __name__ == "__main__":
-    port_arg = int(sys.argv[1]) if len(sys.argv) > 1 else 8080
+    env_port = int(os.environ.get("PORT", 8080))
+    port_arg = int(sys.argv[1]) if len(sys.argv) > 1 else env_port
     run_server(port=port_arg)

@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: nexus-exchange-mission-control
+    env: python
+    plan: free
+    region: oregon
+    buildCommand: "pip install -r requirements.txt && python -c 'import os; from data.generate_raw_data import generate_raw_trades; from data.cleanse_data import cleanse_market_data; os.makedirs(\"data\", exist_ok=True); os.path.exists(\"data/raw_trades.csv\") or generate_raw_trades(\"data/raw_trades.csv\", 1000); os.path.exists(\"data/cleaned_trades.csv\") or cleanse_market_data(\"data/raw_trades.csv\", \"data/cleaned_trades.csv\")'"
+    startCommand: "python server.py"
+    envVars:
+      - key: HOST
+        value: 0.0.0.0
+      - key: PORT
+        value: 8080
+      - key: ENVIRONMENT
+        value: production
+      - key: LOG_LEVEL
+        value: INFO
