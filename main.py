@@ -13,6 +13,10 @@ from src.domain.models import Trade
 from src.services.ingestion_service import DualIngestionService
 from src.services.parity_service import ParityService
 
+# Configure UTF-8 stdout for clean Windows console output
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+
 
 def load_trades_from_csv(csv_path: str) -> List[Trade]:
     """Read cleansed CSV and instantiate validated pure Trade domain entities."""
@@ -39,7 +43,7 @@ def run_hybrid_cloud_migration_drill() -> None:
     """Execute the production-grade multi-threaded migration simulation."""
     print("=" * 80)
     print(" 24/7 FINANCIAL EXCHANGE: ZERO-DOWNTIME HYBRID CLOUD MIGRATION")
-    print(" Decoupled Shadow Running • Live Parity Auditor • Zero-Loss Rollback")
+    print(" Decoupled Shadow Running | Live Parity Auditor | Zero-Loss Rollback")
     print("=" * 80)
 
     # 1. Synthesize and Cleanse Market Data Feed
@@ -153,7 +157,7 @@ def run_hybrid_cloud_migration_drill() -> None:
 
         if final_audit["status"] == "IN_PARITY":
             print("\n" + "*" * 80)
-            print(" [SUCCESS] 100% RECONCILIATION ACHIEVED! ZERO DOWNTIME • ZERO DATA LOSS")
+            print(" [SUCCESS] 100% RECONCILIATION ACHIEVED! ZERO DOWNTIME | ZERO DATA LOSS")
             print("*" * 80)
         else:
             print("\n[FAILURE] Parity reconciliation failed.")
