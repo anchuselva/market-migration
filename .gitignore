@@ -11,6 +11,8 @@ ENV/
 
 # Databases & Runtime State
 *.db
+*.db-shm
+*.db-wal
 *.sqlite3
 *.log
 
