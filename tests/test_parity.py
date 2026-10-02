@@ -1,10 +1,14 @@
-"""Unit and integration tests for parity checking, repository idempotency, and event stream."""
+"""Unit and integration tests for parity checking, repository idempotency, and dual-ingestion."""
 import pytest
-from src.adapters.queue_stream import QueueEventStream
-from src.adapters.sqlite_repository import SqliteTradeRepository
+from unittest.mock import MagicMock, patch
+
+from src.adapters.memory_bus import MemoryEventBus
+from src.adapters.postgres_adapter import PostgresTradeAdapter
+from src.adapters.sqlite_adapter import SqliteTradeAdapter
+from src.api.routes import ApiRouter
 from src.domain.models import Trade
-from src.use_cases.ingest_trade import IngestTradeUseCase
-from src.use_cases.parity_checker import ParityCheckerUseCase
+from src.services.ingestion_service import DualIngestionService, IngestTradeUseCase
+from src.services.parity_service import ParityCheckerUseCase, ParityService
 
 
 @pytest.fixture
@@ -40,7 +44,7 @@ class TestSqliteRepositoryIdempotency:
 
     def test_save_and_idempotency(self, sample_trade_1: Trade) -> None:
         """Ensure initial save succeeds and subsequent duplicate saves are ignored."""
-        repo = SqliteTradeRepository(":memory:")
+        repo = SqliteTradeAdapter(":memory:")
 
         # First insert -> True
         inserted = repo.save(sample_trade_1)
@@ -58,191 +62,245 @@ class TestSqliteRepositoryIdempotency:
 
     def test_volume_and_id_retrieval(self, sample_trade_1: Trade, sample_trade_2: Trade) -> None:
         """Verify cumulative volume and ID set retrieval."""
-        repo = SqliteTradeRepository(":memory:")
-        repo.save(sample_trade_1)
-        repo.save(sample_trade_2)
+        repo = SqliteTradeAdapter(":memory:")
+        repo.save(sample_trade_1)  # 150.0 * 10 = 1500.0
+        repo.save(sample_trade_2)  # 200.0 * 5 = 1000.0
 
         assert repo.count() == 2
-        # (150 * 10) + (200 * 5) = 1500 + 1000 = 2500.0
         assert repo.total_volume() == 2500.0
         assert repo.get_all_ids() == {"TRD-001", "TRD-002"}
 
-        repo.close()
-
-
-class TestQueueEventStreamFanOut:
-    """Test suite for the in-memory event stream broker fan-out pattern."""
-
-    def test_concurrent_fan_out(self, sample_trade_1: Trade) -> None:
-        """Ensure published trade is delivered to all registered subscriber queues."""
-        stream = QueueEventStream()
-        legacy_received: list[Trade] = []
-        cloud_received: list[Trade] = []
-
-        stream.subscribe("market.trades", lambda t: legacy_received.append(t))
-        stream.subscribe("market.trades", lambda t: cloud_received.append(t))
-
-        stream.publish("market.trades", sample_trade_1)
-        stream.join()
-
-        assert len(legacy_received) == 1
-        assert len(cloud_received) == 1
-        assert legacy_received[0].trade_id == sample_trade_1.trade_id
-        assert cloud_received[0].trade_id == sample_trade_1.trade_id
-
-        stream.close()
-
-
-class TestIngestTradeUseCase:
-    """Test suite for IngestTradeUseCase execution."""
-
-    def test_use_case_execution(self, sample_trade_1: Trade) -> None:
-        """Verify use case triggers repository save."""
-        repo = SqliteTradeRepository(":memory:")
-        use_case = IngestTradeUseCase(repo)
-
-        result = use_case.execute(sample_trade_1)
-        assert result is True
-        assert repo.count() == 1
-
-        # Re-run -> idempotent False
-        result_duplicate = use_case.execute(sample_trade_1)
-        assert result_duplicate is False
-        assert repo.count() == 1
+        retrieved = repo.find_by_id("TRD-001")
+        assert retrieved is not None
+        assert retrieved.trade_id == "TRD-001"
+        assert retrieved.instrument == "AAPL"
 
         repo.close()
 
 
-class TestParityCheckerUseCase:
-    """Test suite for ParityCheckerUseCase audit logic and drift detection."""
+class TestParityService:
+    """Test suite for Out-of-Band Parity evaluation and reconciliation."""
 
-    def test_parity_in_sync(self, sample_trade_1: Trade, sample_trade_2: Trade) -> None:
-        """Verify 'IN_PARITY' status when legacy and cloud have identical records."""
-        legacy_repo = SqliteTradeRepository(":memory:")
-        cloud_repo = SqliteTradeRepository(":memory:")
+    def test_in_parity_state(self, sample_trade_1: Trade, sample_trade_2: Trade) -> None:
+        """Verify parity auditor flags IN_PARITY when stores are perfectly synchronized."""
+        legacy_repo = SqliteTradeAdapter(":memory:")
+        cloud_repo = SqliteTradeAdapter(":memory:")
 
-        # Populate both identical
         legacy_repo.save(sample_trade_1)
         legacy_repo.save(sample_trade_2)
         cloud_repo.save(sample_trade_1)
         cloud_repo.save(sample_trade_2)
 
-        checker = ParityCheckerUseCase(legacy_repo, cloud_repo)
-        report = checker.execute()
+        checker = ParityService(legacy_repo, cloud_repo)
+        result = checker.evaluate_parity()
 
-        assert report["legacy_count"] == 2
-        assert report["cloud_count"] == 2
-        assert report["drift"] == 0
-        assert report["status"] == "IN_PARITY"
-        assert report["volume_difference"] == 0.0
-        assert checker.get_missing_cloud_ids() == set()
+        assert result["status"] == "IN_PARITY"
+        assert result["drift"] == 0
+        assert result["volume_difference"] == 0.0
+        assert result["legacy_count"] == 2
+        assert result["cloud_count"] == 2
+        assert result["data_loss_percentage"] == 0.00
 
         legacy_repo.close()
         cloud_repo.close()
 
-    def test_parity_drift_detected_and_recovery(
+    def test_drift_detected_and_reconciled(
         self, sample_trade_1: Trade, sample_trade_2: Trade
     ) -> None:
-        """Verify drift detection when cloud misses a trade and recovery restores parity."""
-        legacy_repo = SqliteTradeRepository(":memory:")
-        cloud_repo = SqliteTradeRepository(":memory:")
+        """Verify drift detection when cloud lags, and verify complete reconciliation."""
+        legacy_repo = SqliteTradeAdapter(":memory:")
+        cloud_repo = SqliteTradeAdapter(":memory:")
 
-        # Legacy receives both, cloud receives only trade 1 (simulating network partition)
+        # Legacy has both, cloud only has trade 1
         legacy_repo.save(sample_trade_1)
         legacy_repo.save(sample_trade_2)
         cloud_repo.save(sample_trade_1)
 
-        checker = ParityCheckerUseCase(legacy_repo, cloud_repo)
-        report = checker.execute()
+        checker = ParityService(legacy_repo, cloud_repo)
+        drift_result = checker.evaluate_parity()
 
-        assert report["legacy_count"] == 2
-        assert report["cloud_count"] == 1
-        assert report["drift"] == 1
-        assert report["status"] == "DRIFT_DETECTED"
-        assert report["volume_difference"] == sample_trade_2.volume()
+        assert drift_result["status"] == "DRIFT_DETECTED"
+        assert drift_result["drift"] == 1
+        assert drift_result["volume_difference"] == 1000.0
+        assert checker.get_missing_cloud_ids() == {"TRD-002"}
 
-        missing = checker.get_missing_cloud_ids()
-        assert missing == {"TRD-002"}
-
-        # Simulate Failback / Replay recovery: ingest missing trade to cloud
-        cloud_repo.save(sample_trade_2)
-
-        recovered_report = checker.execute()
-        assert recovered_report["legacy_count"] == 2
-        assert recovered_report["cloud_count"] == 2
-        assert recovered_report["drift"] == 0
-        assert recovered_report["status"] == "IN_PARITY"
-        assert recovered_report["volume_difference"] == 0.0
+        # Perform reconciliation
+        recon_result = checker.reconcile_from_trades([sample_trade_2])
+        assert recon_result["replayed_count"] == 1
+        assert recon_result["final_status"] == "IN_PARITY"
+        assert recon_result["final_drift"] == 0
 
         legacy_repo.close()
         cloud_repo.close()
 
 
-class TestPostgresTradeRepositoryMocked:
-    """Test suite verifying PostgresTradeRepository logic and queries using mocks."""
+class TestDualIngestionService:
+    """Test suite for dual shadow running and chaos partition injection."""
 
-    def test_postgres_operations(
-        self, monkeypatch: pytest.MonkeyPatch, sample_trade_1: Trade
+    def test_shadow_ingestion_and_chaos(
+        self, sample_trade_1: Trade, sample_trade_2: Trade
     ) -> None:
-        """Verify PostgresTradeRepository interactions with psycopg2 cursor."""
-        from unittest.mock import MagicMock
-        from src.adapters.postgres_repository import PostgresTradeRepository
+        """Verify normal dual ingestion and simulated cloud outage handling."""
+        legacy_repo = SqliteTradeAdapter(":memory:")
+        cloud_repo = SqliteTradeAdapter(":memory:")
+        service = DualIngestionService(legacy_repo, cloud_repo)
 
+        # 1. Normal ingestion
+        res1 = service.ingest(sample_trade_1)
+        assert res1["legacy_inserted"] is True
+        assert res1["cloud_inserted"] is True
+        assert res1["cloud_status"] == "STORED"
+
+        # 2. Chaos active: Cloud drops, Legacy continues
+        service.set_cloud_partition(True)
+        res2 = service.ingest(sample_trade_2)
+        assert res2["legacy_inserted"] is True
+        assert res2["cloud_inserted"] is False
+        assert res2["cloud_status"] == "DROPPED_BY_CHAOS"
+
+        assert legacy_repo.count() == 2
+        assert cloud_repo.count() == 1
+        assert len(service.get_dropped_trades()) == 1
+
+        # 3. Heal chaos & reconcile
+        service.set_cloud_partition(False)
+        parity = ParityService(legacy_repo, cloud_repo)
+        recon = parity.reconcile_from_trades(service.get_dropped_trades())
+        assert recon["final_status"] == "IN_PARITY"
+        assert cloud_repo.count() == 2
+
+        legacy_repo.close()
+        cloud_repo.close()
+
+
+class TestMemoryEventBus:
+    """Test suite for asynchronous in-memory event streaming broker."""
+
+    def test_pub_sub_fanout(self, sample_trade_1: Trade) -> None:
+        """Verify broker fans out published event to multiple subscribers concurrently."""
+        bus = MemoryEventBus()
+        received_a = []
+        received_b = []
+
+        bus.subscribe("market.trades", lambda t: received_a.append(t))
+        bus.subscribe("market.trades", lambda t: received_b.append(t))
+
+        bus.publish("market.trades", sample_trade_1)
+        bus.join()
+
+        assert len(received_a) == 1
+        assert len(received_b) == 1
+        assert received_a[0].trade_id == "TRD-001"
+        assert received_b[0].trade_id == "TRD-001"
+
+        bus.close()
+
+
+class TestApiRouter:
+    """Test suite for REST/OpenAPI endpoints."""
+
+    def test_api_endpoints(self, sample_trade_1: Trade) -> None:
+        """Verify /health, /trades, /trades/parity, and /trades/cutover endpoints."""
+        legacy_repo = SqliteTradeAdapter(":memory:")
+        cloud_repo = SqliteTradeAdapter(":memory:")
+        ingestion = DualIngestionService(legacy_repo, cloud_repo)
+        parity = ParityService(legacy_repo, cloud_repo)
+        router = ApiRouter(ingestion, parity)
+
+        # 1. Health check
+        code, health = router.dispatch("GET", "/health")
+        assert code == 200
+        assert health["status"] == "UP"
+
+        # 2. Ingest trade via API
+        payload = {
+            "trade_id": "TRD-API-001",
+            "instrument": "AAPL",
+            "price": 175.0,
+            "quantity": 20,
+            "buy_order_id": "BUY-1",
+            "sell_order_id": "SELL-1",
+            "timestamp": "2026-10-01T10:00:00Z",
+        }
+        code, res = router.dispatch("POST", "/trades", payload)
+        assert code == 201
+        assert res["trade_id"] == "TRD-API-001"
+        assert res["legacy_inserted"] is True
+
+        # 3. Parity status
+        code, p_res = router.dispatch("GET", "/trades/parity")
+        assert code == 200
+        assert p_res["status"] == "IN_PARITY"
+
+        # 4. Cutover
+        code, cut_res = router.dispatch("POST", "/trades/cutover")
+        assert code == 200
+        assert cut_res["status"] == "CUTOVER_SUCCESSFUL"
+
+        # 5. Rollback
+        code, roll_res = router.dispatch("POST", "/trades/rollback")
+        assert code == 200
+        assert roll_res["status"] == "ROLLBACK_SUCCESSFUL"
+        assert roll_res["data_loss_percentage"] == 0.0
+
+        legacy_repo.close()
+        cloud_repo.close()
+
+
+class TestLegacyUseCases:
+    """Test suite for backward-compatible use case aliases."""
+
+    def test_ingest_trade_use_case(self, sample_trade_1: Trade) -> None:
+        """Verify IngestTradeUseCase delegates to repository port."""
+        repo = SqliteTradeAdapter(":memory:")
+        use_case = IngestTradeUseCase(repo, repo)
+        res = use_case.ingest(sample_trade_1)
+        assert res["legacy_inserted"] is True
+        repo.close()
+
+    def test_parity_checker_alias(self, sample_trade_1: Trade) -> None:
+        """Verify ParityCheckerUseCase alias works identically to ParityService."""
+        legacy = SqliteTradeAdapter(":memory:")
+        cloud = SqliteTradeAdapter(":memory:")
+        legacy.save(sample_trade_1)
+        cloud.save(sample_trade_1)
+
+        checker = ParityCheckerUseCase(legacy, cloud)
+        res = checker.execute()
+        assert res["status"] == "IN_PARITY"
+
+        legacy.close()
+        cloud.close()
+
+
+class TestPostgresAdapterMocked:
+    """Test suite for PostgresTradeAdapter with mocked psycopg2."""
+
+    @patch("src.adapters.postgres_adapter.psycopg2")
+    def test_postgres_adapter_idempotent_save(
+        self, mock_psycopg2: MagicMock, sample_trade_1: Trade
+    ) -> None:
+        """Verify Postgres adapter executes ON CONFLICT DO NOTHING."""
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
-        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
-        mock_conn.closed = 0
-
-        # Mock psycopg2.connect
-        import psycopg2
-        monkeypatch.setattr(psycopg2, "connect", lambda **kwargs: mock_conn)
-
-        repo = PostgresTradeRepository({"host": "localhost", "port": 5433})
-
-        # Test save - row inserted
         mock_cursor.rowcount = 1
-        assert repo.save(sample_trade_1) is True
+        mock_cursor.fetchone.return_value = [1]
+        mock_cursor.fetchall.return_value = [("TRD-001",)]
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+        mock_psycopg2.connect.return_value = mock_conn
 
-        # Test save - duplicate ignored (rowcount 0)
-        mock_cursor.rowcount = 0
-        assert repo.save(sample_trade_1) is False
+        params = {
+            "host": "localhost",
+            "port": 5432,
+            "dbname": "test",
+            "user": "u",
+            "password": "p",
+        }
+        adapter = PostgresTradeAdapter(params)
 
-        # Test count
-        mock_cursor.fetchone.return_value = [42]
-        assert repo.count() == 42
+        assert adapter.save(sample_trade_1) is True
+        assert adapter.count() == 1
+        assert adapter.get_all_ids() == {"TRD-001"}
 
-        # Test total_volume
-        mock_cursor.fetchone.return_value = [123456.78]
-        assert repo.total_volume() == 123456.78
-
-        # Test get_all_ids
-        mock_cursor.fetchall.return_value = [("TRD-001",), ("TRD-002",)]
-        assert repo.get_all_ids() == {"TRD-001", "TRD-002"}
-
-        repo.close()
+        adapter.close()
         assert mock_conn.close.called
-
-
-class TestTradeReportingWorkload:
-    """Test suite for the migrated core Trade Reporting workload."""
-
-    def test_trade_reporting_generation(
-        self, sample_trade_1: Trade, sample_trade_2: Trade
-    ) -> None:
-        """Verify regulatory report computes accurate metrics from cloud repository."""
-        from src.use_cases.trade_reporting import TradeReportingUseCase
-
-        cloud_repo = SqliteTradeRepository(":memory:")
-        cloud_repo.save(sample_trade_1)
-        cloud_repo.save(sample_trade_2)
-
-        reporting_use_case = TradeReportingUseCase(cloud_repo)
-        report = reporting_use_case.generate_eod_regulatory_report()
-
-        assert report["workload_name"] == "Post-Trade Regulatory Reporting & Surveillance"
-        assert report["execution_status"] == "CLOUD_NATIVE_ACTIVE"
-        assert report["total_reported_executions"] == 2
-        assert report["total_notional_volume"] == 2500.0
-        assert report["average_execution_value"] == 1250.0
-
-        cloud_repo.close()

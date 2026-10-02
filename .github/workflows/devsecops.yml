@@ -1,0 +1,51 @@
+name: DevSecOps CI Pipeline
+
+on:
+  pull_request:
+    branches:
+      - main
+      - dev
+  push:
+    branches:
+      - main
+      - dev
+
+jobs:
+  devsecops-gate:
+    name: Code Quality, Unit Tests & Container Security
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Codebase
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Step 1 - Code Styling & Linting (flake8)
+        run: |
+          # Stop build on fatal syntax errors or undefined names
+          flake8 src data tests main.py --count --select=E9,F63,F7,F82 --show-source --statistics
+          # Enforce PEP8 guidelines with 100 character max line length
+          flake8 src data tests main.py --count --max-line-length=100 --statistics
+
+      - name: Step 2 - Unit & Parity Test Suite (pytest)
+        run: |
+          pytest tests/ -v --maxfail=1
+
+      - name: Step 3 - Container & Vulnerability Security Scan (Trivy)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: "fs"
+          scan-ref: "."
+          severity: "CRITICAL,HIGH"
+          format: "table"
+          exit-code: "0" # Audit policy enforcement

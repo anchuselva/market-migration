@@ -1,10 +1,10 @@
 version: '3.8'
 
 services:
-  # On-Premises Legacy Database (Simulated Bare-Metal PostgreSQL on Port 5432)
-  legacy-postgres:
+  # On-Premises Legacy Database (Port 5432)
+  legacy_db:
     image: postgres:16-alpine
-    container_name: legacy-postgres
+    container_name: legacy_db
     restart: unless-stopped
     ports:
       - "5432:5432"
@@ -13,7 +13,7 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password123
     volumes:
-      - legacy_pg_data:/var/lib/postgresql/data
+      - legacy_data:/var/lib/postgresql/data
       - ./init-db.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d legacy_trading"]
@@ -22,10 +22,10 @@ services:
       retries: 5
       start_period: 10s
 
-  # Target Cloud Database (Simulated AWS Aurora Multi-AZ PostgreSQL on Port 5433)
-  cloud-postgres:
+  # Target Cloud Database (Simulated AWS Aurora Multi-AZ on Port 5433)
+  cloud_db:
     image: postgres:16-alpine
-    container_name: cloud-postgres
+    container_name: cloud_db
     restart: unless-stopped
     ports:
       - "5433:5432"
@@ -34,7 +34,7 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password123
     volumes:
-      - cloud_pg_data:/var/lib/postgresql/data
+      - cloud_data:/var/lib/postgresql/data
       - ./init-db.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d cloud_trading"]
@@ -44,7 +44,7 @@ services:
       start_period: 10s
 
 volumes:
-  legacy_pg_data:
+  legacy_data:
     driver: local
-  cloud_pg_data:
+  cloud_data:
     driver: local

@@ -1,5 +1,10 @@
-"""Ports defining boundary interfaces for persistence and streaming."""
-from src.ports.trade_repository import TradeRepository
-from src.ports.event_stream import EventStream
+"""Ports package defining abstract contracts for Clean Architecture."""
+from src.ports.event_bus_port import EventBusPort, EventStream
+from src.ports.repository_port import TradeRepository, TradeRepositoryPort
 
-__all__ = ["TradeRepository", "EventStream"]
+__all__ = [
+    "TradeRepositoryPort",
+    "TradeRepository",
+    "EventBusPort",
+    "EventStream",
+]

@@ -1,0 +1,207 @@
+openapi: 3.0.3
+info:
+  title: Nexus Financial Exchange Hybrid Cloud Migration API
+  description: >
+    Mission Control and Orchestration API for 24/7 Financial Exchange
+    Zero-Downtime, Zero-Data-Loss Hybrid Cloud Migration Strategy (Challenge 1.2).
+  version: 1.2.0
+  contact:
+    name: Nexus Systems Engineering
+    email: systems@nexus-exchange.internal
+
+servers:
+  - url: http://localhost:8080
+    description: Local Mission Control Server
+  - url: https://api.nexus-exchange.internal/v1
+    description: Production Multi-AZ Ingestion Cluster
+
+paths:
+  /health:
+    get:
+      summary: System Health & Status
+      description: Returns health and operational state of primary and shadow stores.
+      responses:
+        '200':
+          description: System operational.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+
+  /trades:
+    post:
+      summary: Ingest Market Trade
+      description: Dispatches trade to Legacy store and Cloud shadow store concurrently.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TradeInput'
+      responses:
+        '201':
+          description: Trade accepted for dual-ingestion.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IngestionResult'
+        '400':
+          description: Trade invariant validation failure.
+
+  /trades/parity:
+    get:
+      summary: Out-of-Band Parity Audit
+      description: Returns count drift, volume discrepancy, and synchronization health.
+      responses:
+        '200':
+          description: Parity evaluation report.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ParityAudit'
+
+  /trades/reconcile:
+    post:
+      summary: Trigger Idempotent Replay
+      description: Replays dropped or unacknowledged trades from backlog into target cloud store.
+      responses:
+        '200':
+          description: Reconciliation execution summary.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReconciliationResult'
+
+  /trades/cutover:
+    post:
+      summary: Execute Production Cutover
+      description: Promotes Cloud Aurora to primary master while keeping on-premise as hot standby.
+      responses:
+        '200':
+          description: Cutover confirmed.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: CUTOVER_SUCCESSFUL
+                  active_primary:
+                    type: string
+                    example: AWS Aurora Multi-AZ PostgreSQL
+
+  /trades/rollback:
+    post:
+      summary: Instant Zero-Data-Loss Failback
+      description: Reverts traffic to on-premise matching engine instantly if anomaly is detected.
+      responses:
+        '200':
+          description: Rollback confirmed.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ROLLBACK_SUCCESSFUL
+                  data_loss_percentage:
+                    type: number
+                    example: 0.0
+
+components:
+  schemas:
+    TradeInput:
+      type: object
+      required:
+        - trade_id
+        - instrument
+        - price
+        - quantity
+        - buy_order_id
+        - sell_order_id
+        - timestamp
+      properties:
+        trade_id:
+          type: string
+          example: TRD-9812A45C
+        instrument:
+          type: string
+          example: NVDA
+        price:
+          type: number
+          format: float
+          minimum: 0.01
+          example: 124.50
+        quantity:
+          type: integer
+          minimum: 1
+          example: 250
+        buy_order_id:
+          type: string
+          example: ORD-BUY-1002
+        sell_order_id:
+          type: string
+          example: ORD-SELL-2004
+        timestamp:
+          type: string
+          example: 2026-10-01T09:30:00Z
+
+    IngestionResult:
+      type: object
+      properties:
+        trade_id:
+          type: string
+        legacy_inserted:
+          type: boolean
+        cloud_inserted:
+          type: boolean
+        cloud_status:
+          type: string
+          enum: [STORED, DROPPED_BY_CHAOS, DUPLICATE_SKIPPED, HALTED]
+
+    ParityAudit:
+      type: object
+      properties:
+        legacy_count:
+          type: integer
+        cloud_count:
+          type: integer
+        drift:
+          type: integer
+        status:
+          type: string
+          enum: [IN_PARITY, DRIFT_DETECTED]
+        legacy_volume:
+          type: number
+        cloud_volume:
+          type: number
+        volume_difference:
+          type: number
+        data_loss_percentage:
+          type: number
+
+    ReconciliationResult:
+      type: object
+      properties:
+        replayed_count:
+          type: integer
+        initial_missing_count:
+          type: integer
+        final_status:
+          type: string
+        final_drift:
+          type: integer
+
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+        cutover_active:
+          type: boolean
+        rollback_active:
+          type: boolean
+        cloud_partition_active:
+          type: boolean

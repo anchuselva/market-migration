@@ -1,6 +1,13 @@
-"""Unit tests for pure financial domain entity Trade."""
+"""Unit tests for pure financial domain entities and invariants."""
 import pytest
-from src.domain.models import Trade
+
+from src.domain.exceptions import (
+    DomainException,
+    InvalidPriceError,
+    InvalidQuantityError,
+    ValidationError,
+)
+from src.domain.models import Instrument, Order, Trade
 
 
 class TestTradeDomainModel:
@@ -26,7 +33,7 @@ class TestTradeDomainModel:
         assert trade.timestamp == "2026-10-01T10:00:00Z"
 
     def test_volume_calculation(self) -> None:
-        """Verify volume computes accurate notional cash value (price * quantity)."""
+        """Verify dollar_volume and volume compute accurate notional cash value."""
         trade = Trade(
             trade_id="TRD-1002",
             instrument="NVDA",
@@ -36,6 +43,7 @@ class TestTradeDomainModel:
             sell_order_id="SELL-004",
             timestamp="2026-10-01T10:01:00Z",
         )
+        assert trade.dollar_volume() == 6000.0
         assert trade.volume() == 6000.0
 
     @pytest.mark.parametrize("invalid_price", [0.0, -1.0, -99.99])
@@ -98,3 +106,59 @@ class TestTradeDomainModel:
         )
         with pytest.raises(Exception):
             trade.price = 200.0  # type: ignore
+
+
+class TestOrderDomainModel:
+    """Test suite for Order entity and invariant checks."""
+
+    def test_valid_order_creation(self) -> None:
+        """Verify Order creation and notional value calculation."""
+        order = Order(
+            order_id="ORD-101",
+            side="BUY",
+            instrument="AAPL",
+            price=150.0,
+            quantity=20,
+            timestamp="2026-10-01T10:00:00Z",
+        )
+        assert order.order_id == "ORD-101"
+        assert order.side == "BUY"
+        assert order.notional_value() == 3000.0
+
+    def test_order_side_validation(self) -> None:
+        """Verify only BUY and SELL are accepted."""
+        with pytest.raises(ValueError, match="side must be 'BUY' or 'SELL'"):
+            Order(
+                order_id="ORD-BAD",
+                side="HOLD",
+                instrument="AAPL",
+                price=150.0,
+                quantity=10,
+                timestamp="2026-10-01T10:00:00Z",
+            )
+
+
+class TestInstrumentDomainModel:
+    """Test suite for Instrument entity."""
+
+    def test_valid_instrument_creation(self) -> None:
+        """Verify Instrument initialization with attributes."""
+        inst = Instrument(symbol="AAPL", name="Apple Inc.", asset_class="EQUITY")
+        assert inst.symbol == "AAPL"
+        assert inst.tick_size == 0.01
+        assert inst.lot_size == 1
+
+    def test_invalid_tick_size(self) -> None:
+        """Verify tick_size must be positive."""
+        with pytest.raises(ValueError, match="tick_size must be strictly positive"):
+            Instrument(symbol="AAPL", name="Apple Inc.", asset_class="EQUITY", tick_size=0.0)
+
+
+class TestDomainExceptions:
+    """Test suite for domain exception hierarchy."""
+
+    def test_domain_exception_hierarchy(self) -> None:
+        """Verify inheritance relationships among domain exceptions."""
+        assert issubclass(ValidationError, DomainException)
+        assert issubclass(InvalidPriceError, ValidationError)
+        assert issubclass(InvalidQuantityError, ValidationError)
