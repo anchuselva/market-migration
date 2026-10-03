@@ -507,21 +507,35 @@ function updateGauge(percentage, hasDrift) {
 }
 
 /* ==========================================================================
-   Real-Time Ingestion Wave Chart (HTML5 Canvas)
+   Real-Time Ingestion Wave Chart (HTML5 Canvas - Zero-Thrash)
    ========================================================================== */
+let waveCanvasWidth = 0;
+let waveCanvasHeight = 0;
+
+function resizeWaveCanvas() {
+  if (!waveCanvas) return;
+  const parent = waveCanvas.parentElement;
+  const width = parent ? parent.clientWidth : 300;
+  const height = 65;
+  if (waveCanvas.width !== width || waveCanvas.height !== height) {
+    waveCanvas.width = width;
+    waveCanvas.height = height;
+    waveCanvasWidth = width;
+    waveCanvasHeight = height;
+  }
+}
+
 function renderWaveChart() {
   if (!waveCanvas) return;
+  if (waveCanvasWidth === 0) resizeWaveCanvas();
+  const width = waveCanvasWidth;
+  const height = waveCanvasHeight || 65;
   const ctx = waveCanvas.getContext('2d');
-  const width = waveCanvas.parentElement.clientWidth || 300;
-  const height = 65;
-
-  waveCanvas.width = width;
-  waveCanvas.height = height;
 
   ctx.clearRect(0, 0, width, height);
 
   const maxVal = Math.max(60, ...tpsHistory);
-  const step = width / (tpsHistory.length - 1);
+  const step = width / Math.max(1, tpsHistory.length - 1);
 
   // Gradient Fill
   const gradient = ctx.createLinearGradient(0, 0, 0, height);
@@ -554,14 +568,16 @@ function renderWaveChart() {
   ctx.strokeStyle = '#00f2fe';
   ctx.lineWidth = 2;
   ctx.shadowColor = '#00f2fe';
-  ctx.shadowBlur = 8;
+  ctx.shadowBlur = 6;
   ctx.stroke();
   ctx.shadowBlur = 0;
 }
 
 /* ==========================================================================
-   Trade Feed Rendering with Modal Inspector
+   Trade Feed Rendering with Modal Inspector (Signature-Cached)
    ========================================================================== */
+let lastRenderedTradesSignature = '';
+
 function renderTrades(trades) {
   const filterVal = (feedFilter.value || '').toUpperCase().trim();
   const filtered = filterVal
@@ -569,6 +585,14 @@ function renderTrades(trades) {
     : trades;
 
   feedCounter.textContent = `${filtered.length} executions`;
+
+  // Compute a lightweight signature to avoid wasteful DOM rebuilds and shaking
+  const topTrade = filtered[0];
+  const sig = filterVal + '|' + filtered.length + '|' + (topTrade ? (topTrade.trade_id + ':' + topTrade.cloud_status) : 'empty');
+  if (sig === lastRenderedTradesSignature) {
+    return; // Zero DOM work if content is unchanged
+  }
+  lastRenderedTradesSignature = sig;
 
   if (filtered.length === 0) {
     tradeTbody.innerHTML = `
@@ -613,9 +637,20 @@ function renderTrades(trades) {
 }
 
 /* ==========================================================================
-   Console Log Ledger
+   Console Log Ledger (Smart-Append)
    ========================================================================== */
+let lastRenderedLogsCount = 0;
+let lastRenderedLogTs = '';
+
 function renderConsoleLogs(logs) {
+  if (!logs || logs.length === 0) return;
+  const lastLog = logs[logs.length - 1];
+  if (logs.length === lastRenderedLogsCount && lastLog && lastLog.ts === lastRenderedLogTs) {
+    return; // Already up-to-date, avoid clearing and resetting scroll
+  }
+  lastRenderedLogsCount = logs.length;
+  lastRenderedLogTs = lastLog ? lastLog.ts : '';
+
   auditConsole.innerHTML = '';
   logs.forEach((log) => {
     const entry = document.createElement('div');
@@ -635,6 +670,7 @@ function renderConsoleLogs(logs) {
   });
   auditConsole.scrollTop = auditConsole.scrollHeight;
 }
+
 
 function appendConsoleLog(tag, type, msg) {
   const entry = document.createElement('div');
@@ -1051,8 +1087,12 @@ document.querySelectorAll('.topo-card').forEach((card) => {
    Boot Application
    ========================================================================== */
 window.addEventListener('DOMContentLoaded', () => {
+  resizeWaveCanvas();
   renderWaveChart();
-  window.addEventListener('resize', renderWaveChart);
+  window.addEventListener('resize', () => {
+    resizeWaveCanvas();
+    renderWaveChart();
+  });
 
   // Attempt backend connection, with immediate simulation warmup
   initSSE();

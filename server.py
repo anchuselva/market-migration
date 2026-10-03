@@ -365,8 +365,9 @@ class MissionControlHandler(SimpleHTTPRequestHandler):
                 payload = f"data: {json.dumps(snapshot)}\n\n"
                 self.wfile.write(payload.encode("utf-8"))
                 self.wfile.flush()
-                time.sleep(0.2)
+                time.sleep(0.35)
         except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, OSError):
+
             pass
 
     def _read_json_body(self) -> Dict[str, Any]:

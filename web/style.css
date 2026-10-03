@@ -93,21 +93,21 @@ body.cyber-theme {
 .text-danger { color: var(--neon-crimson); }
 .font-semibold { font-weight: 600; }
 
-/* Ambient Animated Glow Mesh */
+/* Ambient Subtle Glow Mesh - Ultra-Stable */
 .ambient-glow {
   position: fixed;
   border-radius: 50%;
   filter: blur(140px);
   pointer-events: none;
   z-index: 0;
-  opacity: 0.35;
-  animation: floatOrb 22s infinite alternate ease-in-out;
+  opacity: 0.28;
+  transform: translateZ(0);
 }
 
 .orb-1 {
   width: 550px;
   height: 550px;
-  background: radial-gradient(circle, rgba(0, 242, 254, 0.3), transparent 70%);
+  background: radial-gradient(circle, rgba(0, 242, 254, 0.25), transparent 70%);
   top: -120px;
   left: -120px;
 }
@@ -115,30 +115,23 @@ body.cyber-theme {
 .orb-2 {
   width: 650px;
   height: 650px;
-  background: radial-gradient(circle, rgba(168, 85, 247, 0.25), transparent 70%);
+  background: radial-gradient(circle, rgba(168, 85, 247, 0.2), transparent 70%);
   bottom: -150px;
   right: -100px;
-  animation-duration: 26s;
 }
 
 .orb-3 {
   width: 500px;
   height: 500px;
-  background: radial-gradient(circle, rgba(16, 185, 129, 0.18), transparent 70%);
+  background: radial-gradient(circle, rgba(16, 185, 129, 0.15), transparent 70%);
   top: 45%;
   left: 50%;
-  transform: translate(-50%, -50%);
-  animation-duration: 19s;
-}
-
-@keyframes floatOrb {
-  0% { transform: translate(0, 0) scale(1); }
-  50% { transform: translate(40px, -30px) scale(1.08); }
-  100% { transform: translate(-30px, 40px) scale(0.95); }
+  transform: translate(-50%, -50%) translateZ(0);
 }
 
 /* Geometric Cyber Grid Overlay */
 .cyber-grid-overlay {
+
   position: fixed;
   top: 0;
   left: 0;
@@ -402,14 +395,15 @@ body.cyber-theme {
 }
 
 @keyframes pulseNeon {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.4; transform: scale(0.9); }
+  0%, 100% { opacity: 1; filter: drop-shadow(0 0 6px currentColor); }
+  50% { opacity: 0.45; filter: drop-shadow(0 0 2px currentColor); }
 }
 
 @keyframes pulseDanger {
-  0%, 100% { opacity: 1; transform: scale(1.15); }
-  50% { opacity: 0.3; transform: scale(0.85); }
+  0%, 100% { opacity: 1; box-shadow: 0 0 16px rgba(255, 0, 85, 0.7); }
+  50% { opacity: 0.55; box-shadow: 0 0 4px rgba(255, 0, 85, 0.25); }
 }
+
 
 .parity-pill {
   border-color: rgba(16, 185, 129, 0.3);
@@ -1345,6 +1339,7 @@ body.cyber-theme {
 
 .cyber-table {
   width: 100%;
+  table-layout: fixed;
   border-collapse: collapse;
   font-size: 12px;
   font-family: var(--font-mono);
@@ -1357,6 +1352,15 @@ body.cyber-theme {
   z-index: 5;
 }
 
+.cyber-table th:nth-child(1), .cyber-table td:nth-child(1) { width: 17%; }
+.cyber-table th:nth-child(2), .cyber-table td:nth-child(2) { width: 11%; }
+.cyber-table th:nth-child(3), .cyber-table td:nth-child(3) { width: 11%; }
+.cyber-table th:nth-child(4), .cyber-table td:nth-child(4) { width: 9%; }
+.cyber-table th:nth-child(5), .cyber-table td:nth-child(5) { width: 16%; }
+.cyber-table th:nth-child(6), .cyber-table td:nth-child(6) { width: 12%; }
+.cyber-table th:nth-child(7), .cyber-table td:nth-child(7) { width: 12%; }
+.cyber-table th:nth-child(8), .cyber-table td:nth-child(8) { width: 12%; }
+
 .cyber-table th {
   padding: 10px 12px;
   text-align: left;
@@ -1366,17 +1370,24 @@ body.cyber-theme {
   letter-spacing: 0.5px;
   text-transform: uppercase;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .cyber-table td {
   padding: 9px 12px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .cyber-table tr:hover td {
   background: rgba(0, 242, 254, 0.04);
   cursor: pointer;
 }
+
 
 .store-pill {
   font-size: 10px;
